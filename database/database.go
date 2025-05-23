@@ -1,22 +1,46 @@
 package database
 
 import (
-	"database/sql"
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/joho/godotenv"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-func DbConnection() (*sql.DB, error) {
-	connectionString := "root:senhas@/devbook?charset=utf8&parseTime=True&loc=Local"
+func DbConnection() (*mongo.Client, error) {
+	// Load .env file
+	if err := godotenv.Load(); err != nil {
+		log.Println("Warning: .env file not found")
+	}
 
-	db, err := sql.Open("mysql", connectionString)
+	uri := os.Getenv("MONGODB_URI")
+	if uri == "" {
+		return nil, fmt.Errorf("MONGODB_URI not set in environment")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// fmt.Println(ctx)
+	defer cancel()
+
+	opts := options.Client().
+		ApplyURI(uri).
+		SetServerSelectionTimeout(10 * time.Second). // How long to wait for a server
+		SetConnectTimeout(10 * time.Second)          // How long to establish a TCP connection
+
+	client, err := mongo.Connect(opts)
+
 	if err != nil {
 		return nil, err
 	}
 
-	if err = db.Ping(); err != nil {
+	// Verify connection
+	if err := client.Ping(ctx, nil); err != nil {
 		return nil, err
 	}
 
-	return db, nil
+	return client, nil
 }
